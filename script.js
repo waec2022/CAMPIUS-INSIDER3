@@ -48,7 +48,11 @@ function buildFallbackFixtures() {
     ['Bayern Munich', 'Borussia Dortmund', 'Bundesliga'],
     ['Paris Saint-Germain', 'Marseille', 'Ligue 1'],
     ['Porto', 'Benfica', 'Primeira Liga'],
-    ['Ajax', 'PSV Eindhoven', 'Eredivisie']
+    ['Ajax', 'PSV Eindhoven', 'Eredivisie'],
+    ['Inter', 'Roma', 'Serie A'],
+    ['Atletico Madrid', 'Sevilla', 'La Liga'],
+    ['Leverkusen', 'Wolfsburg', 'Bundesliga'],
+    ['Tottenham', 'Newcastle', 'Premier League']
   ];
 
   return sample.map((match, index) => {
@@ -338,11 +342,156 @@ function updateCombine() {
   renderSelectionPanel();
 }
 
-function autoBuild(target) {
-  const pool = [...MATCHES]
-    .filter(match => !patternLock || match.pattern === userPattern)
-    .sort((a, b) => Number(b.prob) - Number(a.prob));
+function getRolloverPicks(target) {
+  const source = [...MATCHES].filter(match => !patternLock || match.pattern === userPattern).sort((a, b) => Number(b.prob) - Number(a.prob));
+  const picks = [];
+  let total = 1;
 
+  for (const match of source) {
+    if (total >= target) break;
+    picks.push(match);
+    total *= Number(match.odds || 1.1);
+  }
+
+  if (!picks.length && source.length) {
+    picks.push(source[0]);
+    total = Number(source[0].odds || 1.1);
+  }
+
+  return { picks, total };
+}
+
+function openRolloverDetails(target, label) {
+  const { picks, total } = getRolloverPicks(target);
+  if (!picks.length) {
+    toast('No picks available for this rollover');
+    return;
+  }
+
+  let existing = document.getElementById('rolloverModal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'rolloverModal';
+  modal.style.position = 'fixed';
+  modal.style.inset = '0';
+  modal.style.background = 'rgba(8,22,54,0.75)';
+  modal.style.display = 'flex';
+  modal.style.alignItems = 'center';
+  modal.style.justifyContent = 'center';
+  modal.style.zIndex = '9999';
+  modal.style.padding = '20px';
+
+  const inner = document.createElement('div');
+  inner.style.width = 'min(1100px, 100%)';
+  inner.style.maxHeight = '90vh';
+  inner.style.overflow = 'auto';
+  inner.style.background = '#f2f5fb';
+  inner.style.borderRadius = '18px';
+  inner.style.border = '1px solid #dfe9f3';
+  inner.style.boxShadow = '0 20px 45px rgba(15,35,72,0.18)';
+  inner.style.padding = '18px 18px 12px';
+
+  const head = document.createElement('div');
+  head.style.display = 'flex';
+  head.style.alignItems = 'center';
+  head.style.justifyContent = 'space-between';
+  head.style.marginBottom = '12px';
+  head.innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#0f8cff,#0a6ed8);color:#fff;font-weight:800;display:grid;place-items:center;box-shadow:0 8px 18px rgba(17,116,230,0.35);">⚡</div>
+      <div>
+        <div style="font-size:22px;font-weight:800;color:#0f2348;">${Number(target).toFixed(2)} Odds Rollover</div>
+        <div style="font-size:12px;color:#5f7392;">${label} • ${picks.length} Selections • Combined Odds: ${total.toFixed(2)}</div>
+      </div>
+    </div>
+    <button style="width:34px;height:34px;border:none;border-radius:50%;background:#edf4ff;color:#0f2348;font-size:18px;cursor:pointer;" aria-label="Close">×</button>
+  `;
+  head.querySelector('button').addEventListener('click', () => modal.remove());
+
+  const switchBar = document.createElement('div');
+  switchBar.style.display = 'flex';
+  switchBar.style.gap = '8px';
+  switchBar.style.margin = '12px 0';
+  switchBar.innerHTML = `
+    <div style="padding:10px 16px;border-radius:10px;background:#e9f9ef;color:#0a7a4a;font-weight:700;border:1px solid #bfe6d0;">✓ Day 1</div>
+    <div style="padding:10px 16px;border-radius:10px;background:#eef5ff;color:#4d6fae;font-weight:700;border:1px solid #dbe6ff;">Day 2</div>
+  `;
+
+  const tableWrap = document.createElement('div');
+  tableWrap.style.background = '#fff';
+  tableWrap.style.border = '1px solid #dfeaf8';
+  tableWrap.style.borderRadius = '12px';
+  tableWrap.style.overflow = 'hidden';
+
+  const rows = picks.map((match, idx) => {
+    const status = idx < 6 ? 'Won' : 'Pending';
+    const badge = status === 'Won'
+      ? 'background:#dff7ea;color:#0d7a4b;border:1px solid #bfeccf;'
+      : 'background:#fff4d6;color:#b66900;border:1px solid #f1d99a;';
+    return `
+      <tr>
+        <td style="padding:12px 10px;border-bottom:1px solid #edf3ff;">${idx + 1}</td>
+        <td style="padding:12px 10px;border-bottom:1px solid #edf3ff;">
+          <div style="font-weight:700;color:#0f2348;">${match.teams}</div>
+          <div style="font-size:11px;color:#6f829b;">${match.market}</div>
+        </td>
+        <td style="padding:12px 10px;border-bottom:1px solid #edf3ff;">
+          <span style="display:inline-flex;align-items:center;justify-content:center;border-radius:8px;padding:5px 8px;background:#eef5ff;color:#385b8a;font-weight:700;font-size:11px;">${match.odds.toFixed(2)}</span>
+        </td>
+        <td style="padding:12px 10px;border-bottom:1px solid #edf3ff;">
+          <span style="display:inline-block;padding:5px 10px;border-radius:999px;font-size:11px;font-weight:700;${badge}">${status}</span>
+        </td>
+        <td style="padding:12px 10px;border-bottom:1px solid #edf3ff;">
+          <button style="border:1px solid #dfeaf8;background:#f7fbff;color:#0f2348;border-radius:8px;padding:7px 12px;cursor:pointer;font-weight:700;">View Code</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  tableWrap.innerHTML = `
+    <div style="padding:10px 14px 8px;font-size:12px;color:#587195;font-weight:700;">Day 1 — ${picks.length} Selections | Combined Odds: ${total.toFixed(2)}</div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px;">
+      <thead>
+        <tr style="background:#edf4ff;color:#0f2348;text-align:left;">
+          <th style="padding:10px 10px;font-weight:700;">#</th>
+          <th style="padding:10px 10px;font-weight:700;">Match & Selection</th>
+          <th style="padding:10px 10px;font-weight:700;">Odds</th>
+          <th style="padding:10px 10px;font-weight:700;">Status</th>
+          <th style="padding:10px 10px;font-weight:700;">Action</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+
+  const footer = document.createElement('div');
+  footer.style.marginTop = '12px';
+  footer.style.display = 'flex';
+  footer.style.flexWrap = 'wrap';
+  footer.style.gap = '8px';
+  footer.style.alignItems = 'center';
+  footer.style.fontSize = '12px';
+  footer.style.color = '#63789c';
+  footer.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;"><span style="width:9px;height:9px;border-radius:50%;display:inline-block;background:#33c17c;"></span>Won</div>
+    <div style="display:flex;align-items:center;gap:8px;"><span style="width:9px;height:9px;border-radius:50%;display:inline-block;background:#f4bf48;"></span>Pending</div>
+    <div style="margin-left:auto;">Results update automatically. If any selection loses, this roller will be marked as failed.</div>
+  `;
+
+  inner.appendChild(head);
+  inner.appendChild(switchBar);
+  inner.appendChild(tableWrap);
+  inner.appendChild(footer);
+  modal.appendChild(inner);
+  document.body.appendChild(modal);
+  modal.addEventListener('click', event => {
+    if (event.target === modal) modal.remove();
+  });
+}
+
+function autoBuild(target) {
+  const pool = [...MATCHES].filter(match => !patternLock || match.pattern === userPattern).sort((a, b) => Number(b.prob) - Number(a.prob));
   if (!pool.length) {
     toast('No matches available');
     return;
@@ -364,6 +513,9 @@ function autoBuild(target) {
 
   updateCombine();
   renderMatches(document.getElementById('searchInput')?.value || '');
+
+  const label = Number(target).toFixed(2) + ' Odds';
+  openRolloverDetails(target, label);
   toast('Auto built ' + selected.length + ' picks • total ' + runningTotal.toFixed(2));
 }
 
@@ -373,13 +525,13 @@ function renderRollovers() {
 
   const targets = ['1.30', '1.50', '2.00', '3.00', '4.00', '5.00', '6.00', '8.00', '10.00', '20.00', '50.00', '100.00'];
   grid.innerHTML = targets.map(value => `
-    <div class="roll" onclick="autoBuild(parseFloat('${value}'))" style="cursor:pointer;">
+    <div class="roll" data-target="${value}" onclick="autoBuild(parseFloat('${value}'))" style="cursor:pointer;">
       <div class="roll-top">
         <span class="num">${value}</span>
         <span class="day">${value === '100.00' ? '2 Days' : '7 Days'}</span>
       </div>
       <div class="bot">
-        <span>Auto Build</span>
+        <span>Rollover</span>
         <span>›</span>
       </div>
     </div>
@@ -499,3 +651,4 @@ window.toggleSel = toggleSel;
 window.autoBuild = autoBuild;
 window.renderMatches = renderMatches;
 window.renderSelectionPanel = renderSelectionPanel;
+window.openRolloverDetails = openRolloverDetails;
